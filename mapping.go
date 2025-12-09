@@ -1,37 +1,23 @@
 package figi
 
-import "errors"
-
-var (
-	ErrMissingID     = errors.New("missing ID")
-	ErrMissingIDType = errors.New("missing ID type")
+import (
+	"context"
+	"errors"
+	"net/http"
 )
 
-type MappingRequest struct {
-	IDType       IDType `json:"idType"`
-	IDValue      string `json:"idValue"`
-	ExchangeCode string `json:"exchCode,omitempty"`
-	MIC          string `json:"micCode,omitempty"`
-	Currency     string `json:"currency,omitempty"`
-	MarketSector string `json:"marketSecDes,omitempty"`
-}
-
-func (m *MappingRequest) Validate() error {
-	switch {
-	case m.IDType == 0 || !m.IDType.IsAIDType():
-		return ErrMissingIDType
-	case m.IDValue == "":
-		return ErrMissingID
-	default:
-		return nil
-	}
-}
+var (
+	ErrNilRequest           = errors.New("missing request")
+	ErrMissingID            = errors.New("missing ID")
+	ErrMissingIDType        = errors.New("missing ID type")
+	ErrMissingSecurityType2 = errors.New("missing securityType2 (required for this ID type)")
+)
 
 //go:generate enumer -type IDType -json
 type IDType uint8
 
 const (
-	IDTypeUnspecified              IDType = iota
+	ID_UNSPECIFIED                 IDType = iota
 	ID_ISIN                               //	ISIN - International Securities Identification Number.
 	ID_BB_UNIQUE                          //	Unique Bloomberg Identifier - A legacy, internal Bloomberg identifier.
 	ID_SEDOL                              //	Sedol Number - Stock Exchange Daily Official List.
@@ -60,20 +46,107 @@ const (
 	VENDOR_INDEX_CODE                     //	Index code assigned by the index provider for the purpose of identifying the security.
 )
 
-type MappingResponse struct {
-	Error string
-	Data  []struct {
-		FIGI                 string `json:"figi"`
-		SecurityType         string `json:"securityType"`
-		MarketSector         string `json:"marketSector"`
-		Ticker               string `json:"ticker"`
-		Name                 string `json:"name"`
-		UniqueID             string `json:"uniqueID"`
-		ExchangeCode         string `json:"exchCode"`
-		ShareClassFIGI       string `json:"shareClassFIGI"`
-		CompositeFIGI        string `json:"compositeFIGI"`
-		SecurityType2        string `json:"securityType2"`
-		SecurityDescription  string `json:"securityDescription"`
-		UniqueIDFutureOption string `json:"uniqueIDFutOpt"`
+//go:generate enumer -type OptionEnum -trimprefix OptionEnum -json
+type OptionEnum byte
+
+const (
+	OptionEnumUnspecified OptionEnum = iota
+	OptionEnumCall
+	OptionEnumPut
+)
+
+type MappingRequest struct {
+	IDType                  IDType     `json:"idType"`
+	IDValue                 string     `json:"idValue"`
+	ExchangeCode            string     `json:"exchCode,omitempty"`
+	MIC                     string     `json:"micCode,omitempty"`
+	Currency                string     `json:"currency,omitempty"`
+	MarketSector            string     `json:"marketSecDes,omitempty"`
+	SecurityType            string     `json:"securityType,omitempty"`
+	SecurityType2           string     `json:"securityType2,omitempty"`
+	IncludeUnlistedEquities bool       `json:"includeUnlistedEquities,omitempty"`
+	OptionType              OptionEnum `json:"optionType,omitzero"`
+}
+
+func (m *MappingRequest) validate() error {
+	switch {
+	case m == nil:
+		return ErrNilRequest
+	case m.IDValue == "":
+		return ErrMissingID
+	default:
 	}
+
+	switch m.IDType {
+	case 0:
+		return ErrMissingIDType
+	case BASE_TICKER:
+		if m.SecurityType2 == "" {
+			return ErrMissingSecurityType2
+		}
+	case ID_EXCH_SYMBOL:
+		if m.SecurityType2 == "" {
+			return ErrMissingSecurityType2
+		}
+	}
+
+	if !m.IDType.IsAIDType() {
+		return ErrMissingIDType
+	}
+
+	return nil
+}
+
+func (c *Client) Mapping(ctx context.Context, r ...*MappingRequest) ([]MappingResponse, error) {
+	if len(r) == 0 {
+		return nil, nil
+	}
+
+	for _, v := range r {
+		if err := v.validate(); err != nil {
+			c.logger.ErrorContext(ctx, "failed request validation", "err", err, "got", r)
+			return nil, err
+		}
+	}
+
+	type mappingResp struct {
+		Error   string            `json:"error"`
+		Warning string            `json:"warning"`
+		Data    []MappingResponse `json:"data"`
+	}
+
+	var resp []mappingResp
+	if err := c.req(ctx, http.MethodPost, "v3/mapping", r, &resp); err != nil {
+		return nil, err
+	}
+
+	mr := make([]MappingResponse, 0, len(resp))
+	for _, v := range resp {
+		if v.Error != "" {
+			return nil, errors.New(v.Error)
+		}
+
+		if v.Warning != "" {
+			return nil, errors.New(v.Warning)
+		}
+
+		mr = append(mr, v.Data...)
+	}
+
+	return mr, nil
+}
+
+type MappingResponse struct {
+	FIGI                 string `json:"figi"`
+	SecurityType         string `json:"securityType"`
+	MarketSector         string `json:"marketSector"`
+	Ticker               string `json:"ticker"`
+	Name                 string `json:"name"`
+	UniqueID             string `json:"uniqueID"`
+	ExchangeCode         string `json:"exchCode"`
+	ShareClassFIGI       string `json:"shareClassFIGI"`
+	CompositeFIGI        string `json:"compositeFIGI"`
+	SecurityType2        string `json:"securityType2"`
+	SecurityDescription  string `json:"securityDescription"`
+	UniqueIDFutureOption string `json:"uniqueIDFutOpt"`
 }

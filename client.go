@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	ProdURL = "https://api.openfigi.com"
+	ProdURL             = "https://api.openfigi.com"
+	applicationTypeJson = "application/json"
 )
 
 type Client struct {
@@ -23,21 +24,20 @@ type Client struct {
 
 type ClientOpt func(*Client)
 
-func WithHTTPClient(h *http.Client) ClientOpt { return func(c *Client) { c.c = h } }
-func WithLogHandler(h slog.Handler) ClientOpt { return func(c *Client) { c.logger = slog.New(h) } }
-func WithBaseURL(u string) ClientOpt          { return func(c *Client) { c.baseURL = u } }
-func WithApiKey(key string) ClientOpt {
-	return func(c *Client) { c.header.Add("X-OPENFIGI-APIKEY", key) }
-}
+func WithHTTPClient(h *http.Client) ClientOpt      { return func(c *Client) { c.c = h } }
+func WithLogHandler(h slog.Handler) ClientOpt      { return func(c *Client) { c.logger = slog.New(h) } }
+func WithBaseURL(u string) ClientOpt               { return func(c *Client) { c.baseURL = u } }
+func WithExtraHeader(k string, v string) ClientOpt { return func(c *Client) { c.header.Add(k, v) } }
+func WithApiKey(key string) ClientOpt              { return WithExtraHeader("X-OPENFIGI-APIKEY", key) }
 
-func NewController(opts ...ClientOpt) *Client {
+func New(opts ...ClientOpt) *Client {
 	c := &Client{
 		logger:  slog.New(slog.DiscardHandler),
 		c:       http.DefaultClient,
 		baseURL: ProdURL,
 		header: http.Header{
-			"Content-Type": []string{"application/json"},
-			"Accept":       []string{"application/json"},
+			"Content-Type": []string{applicationTypeJson},
+			"Accept":       []string{applicationTypeJson},
 		},
 	}
 
@@ -49,6 +49,7 @@ func NewController(opts ...ClientOpt) *Client {
 }
 
 func (c *Client) req(ctx context.Context, meth, path string, body, target any) error {
+	path = c.baseURL + "/" + path
 	l := c.logger.With("path", path, "method", meth, "body", body)
 
 	var bodyReader io.Reader
@@ -84,7 +85,7 @@ func (c *Client) req(ctx context.Context, meth, path string, body, target any) e
 	}
 	l = l.With("resp", string(buf))
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode/100 != 2 {
 		l.ErrorContext(ctx, "bad status code received")
 		return fmt.Errorf("failed reading response %d:\n%s", resp.StatusCode, buf)
 	}
