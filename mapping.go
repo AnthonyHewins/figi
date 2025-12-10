@@ -137,16 +137,16 @@ func (c *Client) Mapping(ctx context.Context, r ...*MappingRequest) ([]MappingRe
 }
 
 type MappingResponse struct {
-	FIGI                 string `json:"figi"`
-	SecurityType         string `json:"securityType"`
-	MarketSector         string `json:"marketSector"`
-	Ticker               string `json:"ticker"`
-	Name                 string `json:"name"`
-	UniqueID             string `json:"uniqueID"`
-	ExchangeCode         string `json:"exchCode"`
-	ShareClassFIGI       string `json:"shareClassFIGI"`
-	CompositeFIGI        string `json:"compositeFIGI"`
-	SecurityType2        string `json:"securityType2"`
-	SecurityDescription  string `json:"securityDescription"`
-	UniqueIDFutureOption string `json:"uniqueIDFutOpt"`
+	FIGI                 string `json:"figi,omitempty"`
+	SecurityType         string `json:"securityType,omitempty"`
+	MarketSector         string `json:"marketSector,omitempty"`
+	Ticker               string `json:"ticker,omitempty"`
+	Name                 string `json:"name,omitempty"`
+	UniqueID             string `json:"uniqueID,omitempty"`
+	ExchangeCode         string `json:"exchCode,omitempty"`
+	ShareClassFIGI       string `json:"shareClassFIGI,omitempty"`
+	CompositeFIGI        string `json:"compositeFIGI,omitempty"`
+	SecurityType2        string `json:"securityType2,omitempty"`
+	SecurityDescription  string `json:"securityDescription,omitempty"`
+	UniqueIDFutureOption string `json:"uniqueIDFutOpt,omitempty"`
 }

@@ -10,13 +10,9 @@ import (
 
 type mappingCmd struct{}
 
-func (m mappingCmd) name() string {
-	return "mapping"
-}
+func (m mappingCmd) name() string { return "mapping" }
 
-func (m mappingCmd) help() string {
-	return "Get the mapping for a symbol"
-}
+func (m mappingCmd) help() string { return "Get the mapping for a symbol" }
 
 func (m mappingCmd) run(a *args) error {
 	c := figi.New()
